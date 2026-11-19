@@ -1,0 +1,94 @@
+﻿@page "/"
+@using BlazorWasmSuperHeroApi.Models
+@inject HttpClient Http
+
+<PageTitle>Super Heróis</PageTitle>
+
+<h1>Buscar Super Herói</h1>
+
+<form class="input-group mb-4" @onsubmit="Buscar">
+    <input class="form-control" placeholder="Ex.: batman" @bind="nome" aria-label="Nome do herói" />
+    <button class="btn btn-primary" type="submit" disabled="@carregando">Buscar</button>
+</form>
+
+@if (carregando)
+{
+    <p>Carregando...</p>
+}
+else if (erro is not null)
+{
+    <div class="alert alert-warning">@erro</div>
+}
+else if (herois is not null)
+{
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        @foreach (var h in herois)
+        {
+            <div class="col">
+                <div class="card h-100">
+                    <img src="@h.Image?.Url" class="card-img-top" alt="@h.Name" referrerpolicy="no-referrer" onerror="this.style.display='none'" /> @* superherodb bloqueia hotlink (403) *@
+                    <div class="card-body">
+                        <h5 class="card-title">@h.Name</h5>
+                        <p class="card-text mb-1"><b>Nome real:</b> @h.Biography?.FullName</p>
+                        <p class="card-text mb-1"><b>Editora:</b> @h.Biography?.Publisher</p>
+                        <p class="card-text mb-1"><b>Primeira aparição:</b> @h.Biography?.FirstAppearance</p>
+                        <p class="card-text mb-1"><b>Altura/Peso:</b> @Juntar(h.Appearance?.Height) | @Juntar(h.Appearance?.Weight)</p>
+                        <p class="card-text mb-1"><b>Base:</b> @h.Work?.Base</p>
+                        <p class="card-text"><b>Grupos:</b> @h.Connections?.GroupAffiliation</p>
+
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">Inteligência: @h.Powerstats?.Intelligence</li>
+                            <li class="list-group-item">Força: @h.Powerstats?.Strength</li>
+                            <li class="list-group-item">Velocidade: @h.Powerstats?.Speed</li>
+                            <li class="list-group-item">Durabilidade: @h.Powerstats?.Durability</li>
+                            <li class="list-group-item">Poder: @h.Powerstats?.Power</li>
+                            <li class="list-group-item">Combate: @h.Powerstats?.Combat</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    // URL correta é a com .php (a sem .php dá 302 e quebra no navegador)
+    private const string BaseUrl = "https://www.superheroapi.com/api.php";
+    private const string AccessToken = "373ebb1e12a1866f11715ee37f71e075";
+
+    private string nome = "batman";
+    private List<SuperHero>? herois;
+    private string? erro;
+    private bool carregando;
+
+    protected override async Task OnInitializedAsync() => await Buscar();
+
+    private async Task Buscar()
+    {
+        if (string.IsNullOrWhiteSpace(nome)) return;
+
+        carregando = true;
+        erro = null;
+        herois = null;
+        try
+        {
+            var url = $"{BaseUrl}/{AccessToken}/search/{Uri.EscapeDataString(nome.Trim())}";
+            var resposta = await Http.GetFromJsonAsync<SearchResponse>(url);
+
+            if (resposta?.Response == "success")
+                herois = resposta.Results;
+            else
+                erro = resposta?.Error ?? "Nenhum herói encontrado.";
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao consultar a API: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private static string Juntar(List<string>? valores) => valores is null ? "" : string.Join(" / ", valores);
+}
